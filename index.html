@@ -1,11 +1,240 @@
 <!DOCTYPE html>
+<!--
+  Project: City Event Map - Belo Horizonte
+  Author: Patrick Armani
+  Software: Gis Mapping
+  Description: Interactive GIS web app built using ArcGIS JS API.
+  Date: 2026
+-->
+
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GIS MAPPING</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>City Event Map - Belo Horizonte</title>
+
+  <!-- ArcGIS JS API CSS -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
+
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, Arial, sans-serif; }
+    #app { height: 100%; display: grid; grid-template-columns: 320px 1fr; }
+    #sidebar { padding: 14px; border-right: 1px solid #ddd; background: #fff; }
+    #viewDiv { height: 100%; }
+    h1 { font-size: 18px; margin: 0 0 10px; }
+    .label { font-size: 12px; color: #555; margin-top: 12px; margin-bottom: 6px; }
+    select, input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .note { font-size: 12px; color: #666; margin-top: 10px; line-height: 1.35; }
+    .count { margin-top: 10px; font-size: 13px; color: #333; }
+    .footer { margin-top: 14px; font-size: 12px; color: #666; }
+    .pill {
+      display: inline-block; padding: 4px 8px; border-radius: 999px;
+      background: #f2f2f2; font-size: 12px; margin-top: 8px;
+    }
+  </style>
 </head>
+
 <body>
-    
+  <div id="app">
+    <div id="sidebar">
+      <h1>City Event Map - Belo Horizonte</h1>
+      <div class="pill">ArcGIS JS API • No API Key</div>
+
+      <div class="label">Filter by category</div>
+      <select id="categorySelect">
+        <option value="ALL">All categories</option>
+        <option value="Music">Music</option>
+        <option value="Sports">Sports</option>
+        <option value="Food">Food</option>
+        <option value="Tech">Tech</option>
+        <option value="Culture">Culture</option>
+        <option value="Education">Education</option>
+      </select>
+
+      <div class="label">Search by event name</div>
+      <input id="searchInput" type="text" placeholder="Type a name (e.g., Festival)" />
+
+      <div class="count" id="countText">Markers: --</div>
+
+      <p class="note">
+        Click any marker to open a popup with details (name, category, date, description).
+        This project uses a public basemap (OSM) and a client-side FeatureLayer.
+      </p>
+
+      <div class="footer">
+        Tip: Use VS Code + Live Server to run locally.
+      </div>
+    </div>
+
+    <div id="viewDiv"></div>
+  </div>
+
+  <!-- ArcGIS JS API -->
+  <script src="https://js.arcgis.com/4.29/"></script>
+
+<script>
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/layers/FeatureLayer",
+    "esri/Graphic",
+    "esri/widgets/Search"
+  ], (Map, MapView, FeatureLayer, Graphic, Search) => {
+
+    // Static demo dataset: 20+ events around Belo Horizonte.
+    // For this assignment, the goal is to show markers + popups + filtering behavior.
+    const events = [
+      { event_name: "Savassi Music Night", category: "Music", event_date: "2026-02-20", description: "Live bands and local artists in Savassi.", latitude: -19.9364, longitude: -43.9352 },
+      { event_name: "Pampulha Lake Run", category: "Sports", event_date: "2026-03-02", description: "Community run around Lagoa da Pampulha.", latitude: -19.8522, longitude: -43.9710 },
+      { event_name: "Mercado Central Food Tour", category: "Food", event_date: "2026-02-28", description: "Guided tour with tasting at Mercado Central.", latitude: -19.9246, longitude: -43.9395 },
+      { event_name: "UFMG Tech Meetup", category: "Tech", event_date: "2026-03-10", description: "Talks about web development and GIS.", latitude: -19.8690, longitude: -43.9640 },
+      { event_name: "Praça da Liberdade Cultural Walk", category: "Culture", event_date: "2026-03-05", description: "Museums and cultural centers visit.", latitude: -19.9329, longitude: -43.9370 },
+      { event_name: "BH Coding Workshop", category: "Education", event_date: "2026-03-12", description: "Beginner-friendly JavaScript session.", latitude: -19.9191, longitude: -43.9386 },
+
+      { event_name: "Mineirão Stadium Tour", category: "Sports", event_date: "2026-03-08", description: "Visit the stadium and museum.", latitude: -19.8659, longitude: -43.9712 },
+      { event_name: "Santa Tereza Jazz Evening", category: "Music", event_date: "2026-03-15", description: "Jazz performance in Santa Tereza.", latitude: -19.9176, longitude: -43.9154 },
+      { event_name: "Lourdes Gourmet Fair", category: "Food", event_date: "2026-03-18", description: "Street food and local vendors.", latitude: -19.9340, longitude: -43.9465 },
+      { event_name: "Startup Pitch Night", category: "Tech", event_date: "2026-03-22", description: "Local startups present their ideas.", latitude: -19.9369, longitude: -43.9442 },
+      { event_name: "Mangabeiras Park Hike", category: "Culture", event_date: "2026-03-25", description: "Outdoor walk with viewpoint stop.", latitude: -19.9447, longitude: -43.9138 },
+      { event_name: "Library Study Group", category: "Education", event_date: "2026-03-27", description: "Group study session for students.", latitude: -19.9359, longitude: -43.9323 },
+
+      { event_name: "Pampulha Art Museum Visit", category: "Culture", event_date: "2026-04-01", description: "Art exhibition at the Pampulha complex.", latitude: -19.8537, longitude: -43.9692 },
+      { event_name: "Local Bands Festival", category: "Music", event_date: "2026-04-05", description: "Multiple performances in one night.", latitude: -19.9300, longitude: -43.9415 },
+      { event_name: "Healthy Street Food Day", category: "Food", event_date: "2026-04-07", description: "Healthy options and cooking demos.", latitude: -19.9273, longitude: -43.9360 },
+      { event_name: "GIS Learning Meetup", category: "Education", event_date: "2026-04-10", description: "Intro to mapping concepts and tools.", latitude: -19.9295, longitude: -43.9475 },
+
+      { event_name: "Volleyball Friendly Match", category: "Sports", event_date: "2026-04-12", description: "Community volleyball game.", latitude: -19.9112, longitude: -43.9708 },
+      { event_name: "Open-Air Cinema Night", category: "Culture", event_date: "2026-04-15", description: "Movie screening in a public square.", latitude: -19.9220, longitude: -43.9450 },
+      { event_name: "Frontend Dev Meetup", category: "Tech", event_date: "2026-04-18", description: "Talks on HTML/CSS/JS best practices.", latitude: -19.9350, longitude: -43.9280 },
+      { event_name: "Traditional Minas Food Market", category: "Food", event_date: "2026-04-20", description: "Cheese, sweets, and local products.", latitude: -19.9208, longitude: -43.9440 },
+      { event_name: "City Cycling Morning", category: "Sports", event_date: "2026-04-22", description: "Group bike ride across the city.", latitude: -19.9150, longitude: -43.9305 },
+    ];
+
+    // Turn each event into a FeatureLayer "feature" with geometry + attribute fields.
+    // ObjectID is required because the layer needs a unique identifier per record.
+    const source = events.map((e, idx) => ({
+      geometry: { type: "point", latitude: e.latitude, longitude: e.longitude },
+      attributes: {
+        ObjectID: idx + 1,
+        event_name: e.event_name,
+        category: e.category,
+        event_date: e.event_date,
+        description: e.description
+      }
+    }));
+
+    // Client-side FeatureLayer: everything runs in the browser (no hosted service needed).
+    // This is a good fit for the assignment because it still supports popups + filtering.
+    const layer = new FeatureLayer({
+      title: "City Events (BH)",
+      source,
+      objectIdField: "ObjectID",
+      fields: [
+        { name: "ObjectID", type: "oid" },
+        { name: "event_name", type: "string" },
+        { name: "category", type: "string" },
+        { name: "event_date", type: "string" },
+        { name: "description", type: "string" }
+      ],
+      // Popup content shown when the user clicks a marker (required by the assignment).
+      popupTemplate: {
+        title: "{event_name}",
+        content: `
+          <b>Category:</b> {category}<br/>
+          <b>Date:</b> {event_date}<br/>
+          <b>Description:</b> {description}
+        `
+      }
+    });
+
+    // Basemap set to OSM so the app can run without an API key (public tiles).
+    // The data layer (events) is added on top.
+    const map = new Map({
+      basemap: "osm",
+      layers: [layer]
+    });
+
+    // MapView renders the map in the page.
+    // Center and zoom are set to show Belo Horizonte by default.
+    const view = new MapView({
+      container: "viewDiv",
+      map,
+      center: [-43.9386, -19.9191],
+      zoom: 12
+    });
+
+    // Search widget: searches only within the event layer (not the whole world).
+    // This is separate from the "text filter" input on the sidebar.
+    const search = new Search({
+      view,
+      includeDefaultSources: false,
+      sources: [{
+        layer,
+        searchFields: ["event_name"],
+        displayField: "event_name",
+        exactMatch: false,
+        outFields: ["*"],
+        name: "City Events",
+        placeholder: "Search event name"
+      }]
+    });
+    view.ui.add(search, "top-right");
+
+    // UI controls for filtering (additional requirement satisfied here).
+    const categorySelect = document.getElementById("categorySelect");
+    const searchInput = document.getElementById("searchInput");
+    const countText = document.getElementById("countText");
+
+    // Applies the selected category + text to the LayerView filter and updates the marker count.
+    // LayerView filtering is fast because it doesn't rebuild the layer; it only changes what is visible.
+    function applyFilters() {
+      const cat = categorySelect.value;
+      const text = searchInput.value.trim().toLowerCase();
+
+      // Ensures the layer is ready before we ask for its LayerView.
+      layer.queryFeatures({ where: "1=1", outFields: ["*"], returnGeometry: false })
+        .then(() => {
+          view.whenLayerView(layer).then((layerView) => {
+            // Build a WHERE expression that matches the user's choices.
+            // If "ALL" is selected and the search box is empty, the filter becomes "1=1".
+            let catExpr = (cat === "ALL") ? null : `category = '${cat}'`;
+
+            
+            // If LOWER() causes issues, a simple workaround is to remove it and search case-sensitively.
+            let safeText = text.replace(/'/g, "''");
+            let textExpr = text ? `LOWER(event_name) LIKE '%${safeText}%'` : null;
+
+            let whereParts = [];
+            if (catExpr) whereParts.push(catExpr);
+            if (textExpr) whereParts.push(textExpr);
+
+            const where = whereParts.length ? whereParts.join(" AND ") : "1=1";
+
+            // This filter controls which markers are displayed on the map.
+            layerView.filter = { where };
+
+            // Update the sidebar count so the user sees how many markers match the filter.
+            layerView.queryFeatureCount({ where }).then((count) => {
+              countText.textContent = `Markers: ${count}`;
+            });
+          });
+        });
+    }
+
+    // Re-filter whenever the user changes the dropdown or types in the text box.
+    categorySelect.addEventListener("change", applyFilters);
+    searchInput.addEventListener("input", applyFilters);
+
+    // Run once after the view is ready so the count displays immediately.
+    view.when(() => applyFilters());
+  });
+</script>
+
 </body>
 </html>
