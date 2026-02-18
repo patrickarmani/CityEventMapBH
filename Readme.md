@@ -38,10 +38,6 @@ Because the API is loaded remotely, the application requires an internet connect
 
 The goal of this application is to provide an interactive GIS-based visualization of upcoming city events. Users can explore events geographically, apply filters, and access detailed event information through map interaction.
 
-# Youtube link
-
-[Software Demo Video](http://youtube.link.goes.here)
-
 # Development Environment
 
 Code Editor: Visual Studio Code
